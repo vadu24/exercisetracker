@@ -1,5 +1,7 @@
 const express = require('express')
 const app = express()
+const bodyParser = require('body-parser')
+
 const cors = require('cors')
 require('dotenv').config()
 
@@ -10,7 +12,8 @@ app.get('/', (req, res) => {
 });
 
 
-
+const mongoose = require('mongoose')
+mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true });
 
 
 const listener = app.listen(process.env.PORT || 3000, () => {
@@ -53,42 +56,43 @@ app.get('/api/users', (request, response)=>{
 
 app.post('/api/users/:_id/exercises', bodyParser.urlencoded({extended: false}), (request, response)=>{
 
-let newSession = new Session({
+let newSession = new exerciseSession({
     description: request.body.description,
     duration: parseInt(request.body.duration),
     date: request.body.date
   })
 
   if(newSession.date == '' || newSession.date == undefined){
-    newSession.date = new Date().toISOString().substring(0, 10)
+    newSession.date = new Date().toDateString()
   }
-  responseObject = {}
-  User.findOneAndUpdate(
+
+  User.findByIdAndUpdate(
     request.params._id,
     {$push: {log: newSession}},
     {new: true},
     (error, updatedUser)=>{
       if(!error){
       let responseObject = {}
-      responseObject['_id'] = updatedUser._id
+      responseObject['_id'] = updatedUser.id
       responseObject['username'] = updatedUser.username
-      responseObject['date'] = new Date(newSession.date).toDateString()
       responseObject['description'] = newSession.description
       responseObject['duration'] = newSession.duration
+      responseObject['date'] = new Date(newSession.date).toDateString()
       response.json(responseObject)
       }
     }
   )
 })
 
-app.get('/api/users/:_id/logs/', (request, response)=>{
-  User.findById(request.query.userId, (error, result)=>{
+app.get('/api/users/:_id/logs', (request, response)=>{
+  User.findById(request.params._id, (error, result)=>{
     if(!error){
       let responseObject = result
       
       if(request.query.from || request.query.to){
         let fromDate = new Date(0)
         let toDate = new Date()
+        
         if(request.query.from){
           fromDate = new Date(request.query.from)
         }
@@ -99,7 +103,7 @@ app.get('/api/users/:_id/logs/', (request, response)=>{
         toDate = toDate.getTime()
         responseObject.log = responseObject.log.filter((session)=>{
           let sessionDate = new Date(session.date).getTime()
-          return sessionDate >= fromDate && sessionDate <= todate
+          return sessionDate >= fromDate && sessionDate <= toDate
         })
       }
       if(request.query.limit){
@@ -110,5 +114,6 @@ app.get('/api/users/:_id/logs/', (request, response)=>{
       response.json(responseObject)
     }
 
-  })
+  }
+  )
 })
